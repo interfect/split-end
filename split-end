@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# split-end.sh: split a file end-first, without using more than one part extra disk space.
+set -e
+
+if [[ "${#}" != 2 ]] ; then
+    echo 1>&2 "${0}: split a file end-first, without using more than one part extra disk space."
+    echo 1>&2 ""
+    echo 1>&2 "Usage: ${0} SOURCE DEST-BASENAME"
+    exit 1
+fi
+
+SOURCE="${1}"
+DEST="${2}"
+PART_BLOCKS=4194304
+BLOCK_SIZE=1024
+
+FILE_SIZE=$(stat -c %s "${SOURCE}")
+FILE_BLOCKS=$((FILE_SIZE/BLOCK_SIZE+1))
+
+# Compute total parts
+FILE_PARTS=$((FILE_BLOCKS/PART_BLOCKS+1))
+
+echo "Split into ${FILE_PARTS} parts..."
+
+CURRENT_PART=$((FILE_PARTS-1))
+
+while [[ "${CURRENT_PART}" -ge 0 ]] ; do
+    OFFSET_BLOCKS=$((CURRENT_PART*PART_BLOCKS))
+    echo "Producing part ${CURRENT_PART}..."
+    dd "if=${SOURCE}" "of=${DEST}.part$(printf "%05d" ${CURRENT_PART})" bs=${BLOCK_SIZE} count=${PART_BLOCKS} skip=${OFFSET_BLOCKS}
+    OFFSET_BYTES=$((OFFSET_BLOCKS*BLOCK_SIZE))
+    echo "Dropping part ${CURRENT_PART} from file..."
+    truncate -s ${OFFSET_BYTES} ${SOURCE}
+    CURRENT_PART=$((CURRENT_PART-1))
+done
+
+echo "Split into ${FILE_PARTS} parts complete!"
+
+
